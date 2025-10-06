@@ -1,0 +1,6 @@
+pandas
+customtkinter
+openpyxl
+xlrd
+pandas-calamine
+python-calamine
