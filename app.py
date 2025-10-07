@@ -1,6 +1,4 @@
-# excel_name_price_search_v10_fix_mojibake.py
-# -*- coding: utf-8 -*-
-# pip install pandas openpyxl xlrd pandas-calamine customtkinter
+# pip install pandas openpyxl xlrd python-calamine customtkinter
 
 import os
 import re

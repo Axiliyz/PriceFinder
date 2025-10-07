@@ -1,44 +1,67 @@
-name: macOS .app build
+name: macOS build (CustomTkinter)
 
 on:
+  workflow_dispatch:        # ручной запуск
   push:
-  workflow_dispatch:
+    tags: ["v*"]            # либо по релиз-тегам v1.0.0 и т.п.
 
 jobs:
-  build:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
+  build-arm64:
+    runs-on: macos-14       # Apple Silicon runner
+    env:
+      APP_NAME: "PriceFinder"          # <-- поменяй имя приложения при желании
+      ENTRY_FILE: "app.py"             # <-- если у тебя другой файл входа, измени
+      MACOSX_DEPLOYMENT_TARGET: "13.0" # совместимость с Ventura
 
-      - name: Set up Python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
 
-      - name: Install deps
+      - name: Install build deps
         run: |
-          python -m pip install --upgrade pip wheel
-          pip install -r requirements.txt
-          pip install pyinstaller
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install pyinstaller pillow customtkinter
+          brew install create-dmg
 
-      - name: Build .app
+      - name: Build app (.app) with PyInstaller
         run: |
-          pyinstaller --clean --windowed \
-            --name "PriceFinder" \
-            --hidden-import pandas_calamine \
-            --hidden-import pandas.io.excel._base \
-            --hidden-import pandas._libs.tslibs.timedeltas \
-            --hidden-import pandas._libs.tslibs.nattype \
-            --hidden-import pandas._libs.tslibs.timezones \
-            app.py
+          source .venv/bin/activate
+          pyinstaller "$ENTRY_FILE" \
+            --name "$APP_NAME" \
+            --windowed --noconfirm \
+            --collect-submodules tkinter \
+            --collect-data tkinter \
+            --hidden-import PIL._tkinter_finder \
+            $( [ -d icons ] && [ -f icons/app.icns ] && echo --icon "icons/app.icns" ) \
+            $( [ -d assets ] && echo --add-data "assets:assets" )
+          # Быстрая проверка структуры
+          ls -la dist
 
-      - name: Zip artifact
+      - name: Ad-hoc codesign (без учётки Apple)
         run: |
-          cd dist && zip -r PriceFinder-mac.zip "PriceFinder.app"
+          codesign --force --deep --options runtime --timestamp -s - "dist/${APP_NAME}.app"
 
-      - name: Upload artifact
+      - name: Make ZIP (правильная упаковка для пересылки)
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent "dist/${APP_NAME}.app" "dist/${APP_NAME}-macOS-arm64.zip"
+
+      - name: Make DMG (удобно для пользователя)
+        run: |
+          create-dmg "dist/${APP_NAME}.dmg" "dist/${APP_NAME}.app" || \
+          (echo "create-dmg иногда ругается на существующий файл — это ок"; true)
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PriceFinder-mac
-          path: dist/PriceFinder-mac.zip
+          name: ${{ env.APP_NAME }}-macOS-arm64
+          path: |
+            dist/${{ env.APP_NAME }}.dmg
+            dist/${{ env.APP_NAME }}-macOS-arm64.zip
+            dist/${{ env.APP_NAME }}.app
