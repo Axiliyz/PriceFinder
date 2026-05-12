@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 import pandas as pd
 
-# ---------- Excel reader with fallbacks ----------
+# Читка экселя
 
 def read_sheets_any(path: str):
     ext = os.path.splitext(path)[1].lower()
@@ -34,7 +34,7 @@ def read_sheets_any(path: str):
         f"Откройте его в Excel/LibreOffice и сохраните как .xlsx.\nПоследняя ошибка: {last_err}"
     )
 
-# ---------- Text normalization & mojibake fix ----------
+# Убираем артефакты
 
 RE_LETTER_RU = re.compile(r"[a-zа-яё]", re.IGNORECASE)
 RE_HAS_CYR = re.compile(r"[А-Яа-яЁё]")
@@ -85,10 +85,9 @@ def normalize_text(s: str) -> str:
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
-# ---------- Price parsing & numeric heuristics ----------
+# Парс цен
 
 def parse_number_price(val):
-    """Цена: >0, без любых букв."""
     if val is None:
         return None
     if isinstance(val, (int, float)) and not isinstance(val, bool):
@@ -125,7 +124,9 @@ def density_scores_numeric(series: pd.Series, max_rows: int = 200):
         }
 
     nums = []
-    ints = 0; decs = 0; zeros = 0
+    ints = 0
+    decs = 0
+    zeros = 0
     dominant_count = 0
     freq = {}
     long_digit = 0  # >=6 подряд цифр
@@ -177,7 +178,7 @@ def density_scores_numeric(series: pd.Series, max_rows: int = 200):
         "unique_ratio": unique_ratio
     }
 
-# ---------- Column selection & header detection ----------
+# ---------- Выборка колонок ----------
 
 def select_name_price_columns_from_data(data: pd.DataFrame):
     """Определяем (name_col, price_col). Цена — в приоритете сосед справа от name."""
@@ -191,8 +192,11 @@ def select_name_price_columns_from_data(data: pd.DataFrame):
         vals = col.iloc[:200]
         nonempty = [str(v) for v in vals if str(v).strip() != ""]
         if not nonempty:
-            name_scores.append((-1e9, j)); continue
-        letters = 0; digits = 0; total_len = 0
+            name_scores.append((-1e9, j))
+            continue
+        letters = 0
+        digits = 0
+        total_len = 0
         for v in nonempty:
             s = normalize_text(v)
             if RE_LETTER_RU.search(s): letters += 1
@@ -206,11 +210,12 @@ def select_name_price_columns_from_data(data: pd.DataFrame):
         name_scores.append((score, j))
     name_col = max(name_scores)[1] if name_scores else None
 
-    # PRICE candidates
+    # кандидаты в цены
     candidates = []
     for j in range(n_check):
         if j == 0:
-            candidates.append((-1e9, j, {"n":0})); continue
+            candidates.append((-1e9, j, {"n":0}))
+            continue
         dens = density_scores_numeric(data.iloc[:, j])
         if dens["numeric_ratio"] < 0.6:
             base_score = -1e9

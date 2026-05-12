@@ -1,0 +1,52 @@
+name: Windows build (CustomTkinter)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-x64:
+    runs-on: windows-latest
+    env:
+      APP_NAME: "PriceFinder"
+      ENTRY_FILE: "app.py"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build deps
+        run: |
+          python -m venv .venv
+          .venv\Scripts\activate
+          python -m pip install --upgrade pip
+          pip install pyinstaller pandas openpyxl xlrd python-calamine customtkinter pillow
+
+      - name: Build .exe with PyInstaller
+        run: |
+          .venv\Scripts\activate
+          pyinstaller "$env:ENTRY_FILE" `
+            --name "$env:APP_NAME" `
+            --windowed --noconfirm --onefile `
+            --collect-submodules tkinter `
+            --collect-data customtkinter `
+            --hidden-import PIL._tkinter_finder `
+            --hidden-import pandas `
+            --hidden-import openpyxl `
+            --hidden-import xlrd `
+            --hidden-import python_calamine
+
+      - name: Verify build
+        run: ls dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-Windows-x64
+          path: dist\${{ env.APP_NAME }}.exe
